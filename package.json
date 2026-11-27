@@ -1,0 +1,20 @@
+{
+  "name": "ve-chai-len-doi",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "start": "node scripts/launch.js",
+    "dev": "vite --open",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@fontsource/baloo-2": "^5.3.0",
+    "three": "^0.187.0"
+  },
+  "devDependencies": {
+    "vite": "^8.4.0",
+    "vite-plugin-singlefile": "^2.3.4"
+  }
+}

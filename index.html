@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ve Chai Lên Đời</title>
+</head>
+<body>
+  <canvas id="c"></canvas>
+  <div id="vignette"></div>
+  <div id="rainfx"></div>
+
+  <!-- HUD -->
+  <div id="hud" class="hidden">
+    <div id="hud-left">
+      <div id="phase-badge"><span id="phase-icon">🏚️</span><span id="phase-name">Gầm cầu</span></div>
+      <div id="money-box"><span class="money-label">Vốn liếng</span><span id="money">0đ</span></div>
+      <div id="eta"></div>
+      <div id="clean"><span>Phố sạch</span><div class="bar"><i id="clean-fill"></i></div><b id="clean-pct">0%</b></div>
+    </div>
+    <div id="hud-right">
+      <div id="tool-box"><span id="tool-icon">✋</span><span id="tool-name">Tay không</span></div>
+      <div id="cargo-box">
+        <div class="cargo-head"><span>Hàng đang mang</span><b id="cargo-txt">0/4</b></div>
+        <div class="bar big"><i id="cargo-fill"></i></div>
+        <div id="cargo-icons"></div>
+      </div>
+      <div id="stock-box" class="hidden">
+        <div class="cargo-head"><span>Kho vựa</span><b id="stock-txt">0 kiện</b></div>
+        <div class="bar big"><i id="stock-fill"></i></div>
+      </div>
+      <div id="market-box" class="hidden">
+        <div class="cargo-head"><span>Giá nhà máy</span><b id="market-txt">x1.00</b></div>
+        <canvas id="market-chart" width="220" height="54"></canvas>
+      </div>
+    </div>
+    <div id="objective"><span class="obj-dot"></span><span id="objective-txt"></span></div>
+    <div id="prompt" class="hidden"></div>
+    <div id="actions">
+      <button id="btn-loa" class="act hidden" title="Space">📢 <span>Bật loa</span><kbd>Space</kbd></button>
+      <button id="btn-truck" class="act hidden" title="T">🚚 <span>Gọi xe tải</span><kbd>T</kbd></button>
+      <button id="btn-gfx" class="act" title="Đồ họa (G)">⚙️<kbd>G</kbd></button>
+      <button id="btn-shop" class="act">🛒 <span>Nâng cấp</span><kbd>B</kbd></button>
+      <button id="btn-levelup" class="act levelup disabled">⭐ <span id="levelup-txt">Lên đời</span><kbd>L</kbd></button>
+    </div>
+    <div id="indicators"></div>
+    <div id="toasts"></div>
+    <div id="judge-tag" class="hidden">⚖️ Chế độ giám khảo ×3</div>
+  </div>
+
+  <!-- Shop -->
+  <div id="shop" class="panel-wrap hidden">
+    <div class="panel shop-panel">
+      <div class="panel-head"><h2>Nâng cấp</h2><button class="x" data-close>✕</button></div>
+      <div class="shop-cols">
+        <div><h3>🧰 Công cụ <small>(nhân thu nhập)</small></h3><div id="shop-tools"></div></div>
+        <div><h3>👷 Nhân lực & máy móc</h3><div id="shop-extra"></div>
+          <h3>🏠 Nơi làm việc <small>(bắt buộc để lên phase)</small></h3><div id="shop-home"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Graphics settings -->
+  <div id="gfx" class="panel-wrap hidden">
+    <div class="panel gfx-panel">
+      <div class="panel-head"><h2>⚙️ Đồ họa</h2><button class="x" data-close>✕</button></div>
+      <div class="gfx-info"><span id="gfx-gpu"></span><b id="gfx-fps"></b></div>
+      <div id="gfx-warn" class="gfx-warn hidden"></div>
+      <div class="gfx-row"><label>Chất lượng</label><div class="seg" id="seg-mode"></div></div>
+      <div class="gfx-note" id="gfx-mode-note"></div>
+      <div class="gfx-sub">Tùy chỉnh chi tiết</div>
+      <div class="gfx-row"><label>Độ phân giải</label><div class="seg" id="seg-scale"></div></div>
+      <div class="gfx-row"><label>Bóng đổ</label><div class="seg" id="seg-shadow"></div></div>
+      <div class="gfx-row"><label>Hiệu ứng phát sáng</label><div class="seg" id="seg-bloom"></div></div>
+      <div class="gfx-row"><label>Hiện FPS <kbd>F</kbd></label><div class="seg" id="seg-fps"></div></div>
+      <div class="gfx-note">Máy bị giật thì chọn mức thấp hơn. Thay đổi áp dụng ngay, game sẽ nhớ cho lần sau.</div>
+      <div class="mg-row"><button class="big-btn green" data-close>Xong</button></div>
+    </div>
+  </div>
+
+  <!-- Minigame layer -->
+  <div id="mg" class="panel-wrap hidden"></div>
+
+  <!-- Banner (Lên đời) -->
+  <div id="banner" class="hidden"><div class="banner-inner"><small id="banner-sub"></small><h1 id="banner-title"></h1></div></div>
+
+  <!-- Title -->
+  <div id="title">
+    <div class="title-card">
+      <div class="title-kicker">Một câu chuyện đi lên từ hai bàn tay trắng</div>
+      <h1>Ve Chai<br/><span>Lên Đời</span></h1>
+      <p class="hook">Từ gầm cầu lên biệt thự — bằng từng cái lon bia.</p>
+      <button id="btn-start" class="big-btn">Bắt đầu ▶</button>
+      <label class="judge"><input type="checkbox" id="judge-mode" /> Chế độ giám khảo <small>(tiền ×3, demo nhanh)</small></label>
+      <button id="btn-gfx-title" class="big-btn alt small-btn">⚙️ Đồ họa</button>
+      <div id="title-gfx-warn" class="title-warn hidden">⚠️ Máy đang vẽ 3D bằng CPU nên sẽ giật — bấm <b>⚙️ Đồ họa</b> để chỉnh và xem cách sửa.</div>
+      <div class="controls">
+        <span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> di chuyển</span>
+        <span><kbd>B</kbd> nâng cấp</span>
+        <span><kbd>M</kbd> tắt tiếng</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ending -->
+  <div id="ending" class="hidden">
+    <div class="end-card">
+      <div class="title-kicker">Từ gầm cầu lên biệt thự</div>
+      <h1>Đã có biệt thự! 🏡</h1>
+      <div id="end-stats"></div>
+      <p class="end-quote">“Cái xe ba gác đầu tiên vẫn dựng trong sân. Để nhớ mình đi lên từ đâu.”</p>
+      <button id="btn-replay" class="big-btn">Chơi lại ↺</button>
+    </div>
+  </div>
+
+  <div id="perf" class="hidden"></div>
+  <div id="fade"></div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
