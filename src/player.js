@@ -139,7 +139,8 @@ export const player = {
   setCargoFill(fill, count) {
     if (!this.vehicle) {
       const s = .35 + fill * .85;
-      this.sack.scale.setScalar(fill === 0 ? .001 : s);
+      this.sack.userData.rest = fill === 0 ? .001 : s;
+      this.sack.scale.setScalar(this.sack.userData.rest);
       return;
     }
     const ud = this.vehicle.userData;
@@ -167,8 +168,8 @@ export const player = {
 
   bump() { // squash on pickup
     const tgt = this.vehicle ? this.vehicle.userData.cargoAnchor : this.sack;
-    const base = tgt.scale.x;
-    anim(.25, (e) => { const k = Math.sin(e * Math.PI) * .18; tgt.scale.set(base * (1 + k), base * (1 - k), base * (1 + k)); });
+    // rest scale, not tgt.scale: overlapping bumps would read a mid-squash value and ratchet the cargo up forever
+    anim(.25, (e) => { const base = tgt.userData.rest ?? 1, k = Math.sin(e * Math.PI) * .18; tgt.scale.set(base * (1 + k), base * (1 - k), base * (1 + k)); });
   },
 
   carryPoint() {
