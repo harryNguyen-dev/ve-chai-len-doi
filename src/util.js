@@ -2,23 +2,29 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 // Merge a static group's meshes by material: thousands of draw calls -> a few hundred.
+// Merged per CELL-sized chunk (not map-wide) so frustum culling can still skip off-screen chunks in both the main and shadow pass.
+const CELL = 32;
 export function bake(group) {
   group.updateMatrixWorld(true);
   const inv = group.matrixWorld.clone().invert();
-  const byMat = new Map();
+  const byKey = new Map(), p = new THREE.Vector3();
   group.traverse((m) => {
     if (!m.isMesh) return;
-    if (!byMat.has(m.material)) byMat.set(m.material, []);
-    byMat.get(m.material).push(m);
+    p.setFromMatrixPosition(m.matrixWorld).applyMatrix4(inv);
+    // round (not floor) so a small group centred on its origin stays in one chunk
+    const key = `${m.material.id}|${m.castShadow}|${Math.round(p.x / CELL)}|${Math.round(p.z / CELL)}`;
+    if (!byKey.has(key)) byKey.set(key, []);
+    byKey.get(key).push(m);
   });
-  for (const [material, meshes] of byMat) {
+  for (const meshes of byKey.values()) {
+    const material = meshes[0].material;
     if (meshes.length < 2) continue;
     const geos = meshes.map((m) => {
       const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone();
       return g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, m.matrixWorld));
     });
     const merged = new THREE.Mesh(mergeGeometries(geos), material);
-    merged.castShadow = meshes.some((m) => m.castShadow);
+    merged.castShadow = meshes[0].castShadow;
     merged.receiveShadow = true;
     meshes.forEach((m) => m.parent.remove(m));
     group.add(merged);

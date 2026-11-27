@@ -156,11 +156,34 @@ export function applyGfx({ scale, shadow, bloom }) {
   r.shadowMap.needsUpdate = true;
 }
 
+// Shadow-caster culling: the shadow camera covers a 68 m square, so it drew every small prop/NPC/item
+// around the player even when off-screen. Skip a small caster unless its shadow could land in view.
+const _fr = new THREE.Frustum(), _pm = new THREE.Matrix4(), _bs = new THREE.Sphere();
+function cullShadowCasters() {
+  const c = world.camera;
+  c.updateMatrixWorld();
+  _fr.setFromProjectionMatrix(_pm.multiplyMatrices(c.projectionMatrix, c.matrixWorldInverse));
+  world.scene.traverseVisible((o) => {
+    if (!o.isMesh) return;
+    o.userData.cs ??= o.castShadow; // the flag it was built with (set before scene.add everywhere)
+    if (!o.userData.cs) return;
+    const g = o.geometry;
+    if (!g.boundingSphere) g.computeBoundingSphere();
+    _bs.copy(g.boundingSphere).applyMatrix4(o.matrixWorld);
+    if (_bs.radius > 4) { o.castShadow = true; return; } // big/baked chunks: three's own shadow-frustum test is enough
+    _bs.radius += 1 + Math.max(0, _bs.center.y) * 1.6; // low sun: shadow lands ~1.6× height away
+    o.castShadow = _fr.intersectsSphere(_bs);
+  });
+}
+
 let frameNo = 0;
 export function renderFrame(skipEvery = 1) {
   frameNo++;
   if (frameNo % skipEvery) return; // panels open: the 3D behind them doesn't need 60 fps
-  if (frameNo % world.gfx.shadowEvery === 0) world.renderer.shadowMap.needsUpdate = true;
+  if (frameNo % world.gfx.shadowEvery === 0 && world.renderer.shadowMap.enabled) {
+    cullShadowCasters();
+    world.renderer.shadowMap.needsUpdate = true;
+  }
   if (world.gfx.bloom) world.composer.render();
   else world.renderer.render(world.scene, world.camera);
 }
