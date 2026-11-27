@@ -20,14 +20,14 @@ import { neighbours, helpers } from './npc.js';
 import { hud } from './hud.js';
 import { initAudio, sfx, sayLoa, toggleMute, setRain, setMusicLevel } from './audio.js';
 import { updateFx, floatText, flyToEl, worldToScreen, puff, sparkle, shake, shakeOffset, initRain, updateRain, confetti } from './fx.js';
-import { G, tool, lvl, capUsed, incomeMul, potentialRate, ITEM_TYPES, PHASE_ITEM_MUL, TOOLS, EXTRAS, HOMES, VILLA_COST, P3, SEC_PER_YEAR, PHASES, SORT_ORDER, GOODS } from './state.js';
+import { G, tool, lvl, capUsed, incomeMul, potentialRate, ITEM_TYPES, PHASE_ITEM_MUL, TOOLS, EXTRAS, HOMES, VILLA_COST, P3, SEC_PER_YEAR, PHASES, SORT_ORDER, GOODS, saveGame, loadSave, clearSave } from './state.js';
 import { $, anim, tickAnims, damp, rand, clamp, fmtMoney, fmtEta, easeInOutCubic, wait, pick } from './util.js';
 import { runSort } from './minigames/sort.js';
 import { runCrush } from './minigames/crush.js';
 import { runHaggle } from './minigames/haggle.js';
 import { runTruck } from './minigames/truck.js';
 import { runDisassemble } from './minigames/disassemble.js';
-import { openMG, closeMG } from './minigames/common.js';
+import { openMG, closeMG, setKeys } from './minigames/common.js';
 import { faceSVG, ICON } from './icons.js';
 import { levelUpSequence, villaEnding } from './cinematics.js';
 
@@ -111,9 +111,57 @@ $('#btn-truck').onclick = () => !G.paused && !G.cutscene && callTruck();
 $('#shop [data-close]').onclick = closeShop;
 $('#shop').addEventListener('pointerdown', (e) => { if (e.target.id === 'shop') closeShop(); });
 
-$('#btn-start').onclick = () => {
+const save = loadSave();
+if (save) {
+  $('#btn-start').textContent = 'Chơi tiếp ▶';
+  $('#btn-new').classList.remove('hidden');
+  $('#judge-mode').checked = !!save.judge;
+}
+$('#btn-start').onclick = () => startGame(save);
+$('#btn-new').onclick = () => { if (confirm('Xóa tiến trình đã lưu và chơi lại từ đầu?')) { clearSave(); startGame(null); } };
+addEventListener('pagehide', () => { if (G.started && !G.cutscene && G.phase < 4) saveGame(); });
+
+// rebuild the world for a saved phase by replaying the real phase steps (buttons, bike, items.max...)
+function restore(s) {
+  Object.assign(G, s);
+  G.shownMoney = G.money;
+  const { stock, phase } = G; // onPhase() overwrites both
+  bases.set(phase, false);
+  for (let p = 1; p <= phase; p++) ctx.onPhase(p);
+  G.stock = stock;
+  player.setTool(tool(), false);
+  player.setCargoFill(capUsed() / tool().cap);
+  for (let i = 0; i < lvl('em'); i++) helpers.add();
+  updateClean();
+  readyWarned = G.phase;
+}
+
+const ONBOARD_KEY = 'vcld-onboard-v1';
+function showOnboarding() {
+  G.paused = true;
+  const step = (ic, nm, ds) => `<div class="choice"><div class="ic">${ic}</div><div class="nm">${nm}</div><div class="ds">${ds}</div></div>`;
+  const p = openMG(`<div class="panel-head"><div><h2>Cách chơi 🧭</h2><div class="mg-sub">Game tự lưu — tắt đi mở lại vẫn chơi tiếp.</div></div></div>
+    <div class="choice-grid onb">
+      ${step('🚶', 'Đi nhặt', '<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> di chuyển, đi ngang ve chai là tự nhặt.')}
+      ${step('🏚️', 'Về bán', 'Đầy bao thì về gầm cầu bán cho chú Tư. Phân loại kỹ được giá cao.')}
+      ${step('🛒', 'Nâng cấp', 'Bấm <kbd>B</kbd> mua bao tải, nam châm… nhặt nhanh, mang nhiều hơn.')}
+      ${step('⭐', 'Lên đời', 'Đủ vốn bấm <kbd>L</kbd>: vựa nhỏ → vựa lớn → biệt thự 1 tỷ.')}
+    </div>
+    <div class="mg-row"><button class="big-btn green btn-go">Đi nhặt thôi! <kbd>Enter</kbd></button></div>`);
+  const done = () => {
+    closeMG();
+    try { localStorage.setItem(ONBOARD_KEY, '1'); } catch { /* ignore */ }
+    G.paused = false;
+    hud.toast('Gầm cầu, 5 giờ chiều. Trong túi: 0đ. Ước mơ: một căn biệt thự.', '', 4.5);
+  };
+  p.querySelector('.btn-go').onclick = done;
+  setKeys((e) => { if (e.key !== 'Enter' && e.code !== 'Space') return false; e.preventDefault(); done(); });
+}
+
+function startGame(save) {
   initAudio();
   if (world.softwareGL) setTimeout(() => hud.toast('⚠️ Trình duyệt đang vẽ 3D bằng CPU nên sẽ giật. Bấm <b>G</b> (⚙️ Đồ họa) để chỉnh và xem cách sửa.', 'bad', 10), 1500);
+  if (save) restore(save);
   G.judge = $('#judge-mode').checked;
   $('#judge-tag').classList.toggle('hidden', !G.judge);
   $('#title').classList.add('out');
@@ -123,8 +171,10 @@ $('#btn-start').onclick = () => {
   G.started = true;
   cam.mode = 'follow';
   sfx.fanfare();
-  setTimeout(() => hud.toast('Gầm cầu, 5 giờ chiều. Trong túi: 0đ. Ước mơ: một căn biệt thự.', '', 4.5), 600);
-};
+  if (save) setTimeout(() => hud.toast(`💾 Chơi tiếp: ${PHASES[G.phase].icon} ${PHASES[G.phase].name} · ${fmtMoney(G.money)}`, 'good', 3.5), 600);
+  else if (localStorage.getItem(ONBOARD_KEY)) setTimeout(() => hud.toast('Gầm cầu, 5 giờ chiều. Trong túi: 0đ. Ước mơ: một căn biệt thự.', '', 4.5), 600);
+  else setTimeout(showOnboarding, 700);
+}
 $('#btn-replay').onclick = () => location.reload();
 // buttons must not keep focus, or Space/Enter would re-trigger them during play
 addEventListener('click', (e) => e.target.closest?.('button')?.blur());
@@ -197,7 +247,7 @@ async function tryLevelUp() {
     sfx.bad(); return;
   }
   G.money -= next.cost;
-  if (next.phase === 4) { $('#debug')?.classList.add('hidden'); return villaEnding(ctx); }
+  if (next.phase === 4) { clearSave(); $('#debug')?.classList.add('hidden'); return villaEnding(ctx); }
   await levelUpSequence(ctx, next.phase);
 }
 
@@ -494,10 +544,11 @@ function updateObjective() {
 
 // ---------------------------------------------------------------- main loop
 let lastNow = performance.now();
-let time = 0, fullWarned = false, rainTimer = rand(55, 80), rainLeft = 0, rainK = 0, marketT = 0, readyWarned = 0, honkCd = 0;
+let time = 0, fullWarned = false, rainTimer = rand(55, 80), rainLeft = 0, rainK = 0, marketT = 0, readyWarned = 0, honkCd = 0, saveT = 5;
 
 function gameplay(dt) {
   G.playTime += dt;
+  if ((saveT -= dt) <= 0) { saveT = 5; saveGame(); }
   const t = tool();
   player.update(dt, time, keys, t.speed, t.radius);
 

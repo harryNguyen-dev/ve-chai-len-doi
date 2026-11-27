@@ -121,6 +121,20 @@ export function potentialRate() {
   return r * incomeMul();
 }
 
+// ---------- save game (localStorage). Only progress, never mid-cutscene state.
+const SAVE_KEY = 'vcld-save-v1';
+const SAVED = ['phase', 'money', 'toolIdx', 'extras', 'cargo', 'stock', 'collected', 'playTime', 'earned', 'deals', 'trucks', 'judge'];
+export function saveGame() {
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(Object.fromEntries(SAVED.map((k) => [k, G[k]])))); } catch { /* storage full / blocked: keep playing */ }
+}
+export function loadSave() {
+  try {
+    const s = JSON.parse(localStorage.getItem(SAVE_KEY));
+    return s && s.phase >= 1 && s.phase <= 3 && TOOLS[s.toolIdx] && Number.isFinite(s.money) && Array.isArray(s.cargo) ? s : null;
+  } catch { return null; }
+}
+export function clearSave() { try { localStorage.removeItem(SAVE_KEY); } catch { /* ignore */ } }
+
 export function resetState() {
   Object.assign(G, {
     phase: 1, money: 0, shownMoney: 0, toolIdx: 0, extras: {}, cargo: [], stock: 0, loa: false,
